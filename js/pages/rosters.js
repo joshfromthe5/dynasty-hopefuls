@@ -68,7 +68,7 @@ export async function render(container) {
                   : `<div class="w-9 h-9 rounded-full bg-gray-700 flex items-center justify-center text-sm font-bold">${owner.name[0]}</div>`
                 }
                 <div class="flex-1 min-w-0">
-                  <div class="text-sm font-semibold truncate">${owner.name}</div>
+                  <a href="#manager/${roster.owner_id}" class="text-sm font-semibold truncate hover:text-emerald-400 transition-colors block">${owner.name}</a>
                   <div class="text-xs text-gray-400">${formatRecord(wins, losses, ties)} · ${fpts} PF</div>
                 </div>
                 <span class="text-xs text-gray-500">${allPlayers.length} players</span>

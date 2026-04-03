@@ -69,7 +69,7 @@ export async function render(container) {
                         ? `<img src="${getAvatarUrl(owner.avatar)}" class="w-7 h-7 rounded-full object-cover shrink-0" alt="">`
                         : `<div class="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center text-xs font-bold shrink-0">${owner.name[0]}</div>`
                       }
-                      <span class="text-sm font-medium truncate">${owner.name}</span>
+                      <a href="#manager/${r.owner_id}" class="text-sm font-medium truncate hover:text-emerald-400 transition-colors">${owner.name}</a>
                     </div>
                     <span class="text-sm font-semibold text-right">${formatRecord(wins, losses, ties)}</span>
                     <span class="text-sm text-right text-gray-300">${fpts}</span>

@@ -1,0 +1,68 @@
+{
+  "title": "League Constitution",
+  "lastUpdated": "2025-01-01",
+  "sections": [
+    {
+      "heading": "League Overview",
+      "rules": [
+        "Dynasty format — all players are kept year to year",
+        "12-team league, head-to-head scoring",
+        "PPR scoring (1 point per reception)",
+        "Regular season: Weeks 1–14, Playoffs: Weeks 15–17"
+      ]
+    },
+    {
+      "heading": "Roster Settings",
+      "rules": [
+        "Starters: 1 QB, 2 RB, 2 WR, 1 TE, 2 FLEX, 1 SUPERFLEX",
+        "Bench spots: 15",
+        "IR spots: 3",
+        "Taxi squad: 5 slots (rookies only in first year)"
+      ]
+    },
+    {
+      "heading": "Draft Rules",
+      "rules": [
+        "Rookie draft: 4 rounds, held after the NFL draft",
+        "Draft order: Reverse order of final standings (non-playoff teams via lottery)",
+        "Draft picks can be traded up to 2 years in advance"
+      ]
+    },
+    {
+      "heading": "Trading",
+      "rules": [
+        "Trades are processed immediately with no review period",
+        "No trade deadline during the regular season",
+        "Offseason trading opens the day after the championship",
+        "Draft picks and FAAB can be included in trades"
+      ]
+    },
+    {
+      "heading": "Waivers & Free Agency",
+      "rules": [
+        "FAAB (Free Agent Acquisition Budget): $100 per season",
+        "Waivers process Wednesday mornings",
+        "Continuous waivers after initial Wednesday processing",
+        "FAAB does not roll over between seasons"
+      ]
+    },
+    {
+      "heading": "Playoffs",
+      "rules": [
+        "6 teams make the playoffs",
+        "Top 2 seeds receive a first-round bye",
+        "Seeding based on record, then total points for as tiebreaker",
+        "Consolation bracket determines draft order for non-playoff teams"
+      ]
+    },
+    {
+      "heading": "Dues & Payouts",
+      "rules": [
+        "Annual dues: $50 per team",
+        "1st place: $350",
+        "2nd place: $150",
+        "Regular season high scorer: $100"
+      ]
+    }
+  ]
+}

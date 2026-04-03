@@ -14,6 +14,14 @@ const pageModules = {
   playoffs: () => import('./pages/playoffs.js'),
   history: () => import('./pages/history.js'),
   'power-rankings': () => import('./pages/power-rankings.js'),
+  h2h: () => import('./pages/h2h.js'),
+  awards: () => import('./pages/awards.js'),
+  manager: () => import('./pages/manager.js'),
+  window: () => import('./pages/window.js'),
+  'trade-values': () => import('./pages/trade-values.js'),
+  taxi: () => import('./pages/taxi.js'),
+  constitution: () => import('./pages/constitution.js'),
+  'trade-review': () => import('./pages/trade-review.js'),
 };
 
 let currentPage = null;

@@ -3,7 +3,7 @@ import { CONFIG } from '../config.js';
 import { formatRecord, formatPoints, getAvatarUrl } from '../utils/format.js';
 import { showLoading, showError } from '../utils/dom.js';
 
-export const title = 'History';
+export const title = 'League History';
 
 async function fetchLeagueChain() {
   const seasons = [];
@@ -22,17 +22,12 @@ async function fetchLeagueChain() {
         (b.settings?.wins || 0) - (a.settings?.wins || 0) || (b.settings?.fpts || 0) - (a.settings?.fpts || 0)
       );
 
-      // Find champion from bracket (finals winner)
       let championRosterId = null;
-      if (winners.length) {
+      if (league.status === 'complete' && winners.length) {
         const finals = winners.filter(m => m.p === 1);
         if (finals.length && finals[0].w) {
           championRosterId = finals[0].w;
         }
-      }
-      // Fallback to #1 in standings
-      if (!championRosterId && sorted.length) {
-        championRosterId = sorted[0].roster_id;
       }
 
       // Most points in a week (need matchup data for completed seasons)
@@ -85,32 +80,33 @@ export async function render(container) {
         <div class="bg-surface rounded-2xl border border-gray-800 p-5">
           <h2 class="font-bold text-lg mb-4">Champions</h2>
           <div class="space-y-4">
-            ${seasons.map(s => {
-              const champ = s.championRosterId ? s.rosters.find(r => r.roster_id === s.championRosterId) : null;
-              const champOwner = champ ? s.users[champ.owner_id] : null;
-              const champName = champOwner?.name || 'Unknown';
-              const isComplete = s.league.status === 'complete';
+            ${seasons.filter(s => s.championRosterId).length
+              ? seasons.filter(s => s.championRosterId).map(s => {
+                const champ = s.rosters.find(r => r.roster_id === s.championRosterId);
+                const champOwner = champ ? s.users[champ.owner_id] : null;
+                const champName = champOwner?.name || 'Unknown';
 
-              return `
-                <div class="flex items-center gap-4">
-                  <div class="w-16 text-center">
-                    <div class="text-lg font-extrabold text-emerald-400">${s.league.season}</div>
-                    <div class="text-xs text-gray-500">${isComplete ? 'Final' : s.league.status === 'in_season' ? 'Active' : 'Pre'}</div>
-                  </div>
-                  <div class="w-px h-12 bg-gray-800"></div>
-                  <div class="flex items-center gap-3 flex-1">
-                    ${champOwner?.avatar
-                      ? `<img src="${getAvatarUrl(champOwner.avatar)}" class="w-10 h-10 rounded-full object-cover" alt="">`
-                      : `<div class="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center text-sm font-bold">${champName[0]}</div>`
-                    }
-                    <div>
-                      <div class="font-semibold">${champName}</div>
-                      ${champ ? `<div class="text-xs text-gray-400">${formatRecord(champ.settings?.wins || 0, champ.settings?.losses || 0, champ.settings?.ties || 0)} · ${formatPoints(champ.settings?.fpts || 0, champ.settings?.fpts_decimal)} PF</div>` : ''}
+                return `
+                  <div class="flex items-center gap-4">
+                    <div class="w-16 text-center">
+                      <div class="text-lg font-extrabold text-emerald-400">${s.league.season}</div>
+                      <div class="text-xs text-gray-500">Final</div>
                     </div>
-                  </div>
-                  ${isComplete ? '<svg class="w-6 h-6 text-yellow-400 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l2.4 7.2h7.6l-6 4.8 2.4 7.2-6.4-4.8-6.4 4.8 2.4-7.2-6-4.8h7.6z"/></svg>' : ''}
-                </div>`;
-            }).join('')}
+                    <div class="w-px h-12 bg-gray-800"></div>
+                    <div class="flex items-center gap-3 flex-1">
+                      ${champOwner?.avatar
+                        ? `<img src="${getAvatarUrl(champOwner.avatar)}" class="w-10 h-10 rounded-full object-cover" alt="">`
+                        : `<div class="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center text-sm font-bold">${champName[0]}</div>`
+                      }
+                      <div>
+                        <div class="font-semibold">${champName}</div>
+                        ${champ ? `<div class="text-xs text-gray-400">${formatRecord(champ.settings?.wins || 0, champ.settings?.losses || 0, champ.settings?.ties || 0)} · ${formatPoints(champ.settings?.fpts || 0, champ.settings?.fpts_decimal)} PF</div>` : ''}
+                      </div>
+                    </div>
+                    <svg class="w-6 h-6 text-yellow-400 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l2.4 7.2h7.6l-6 4.8 2.4 7.2-6.4-4.8-6.4 4.8 2.4-7.2-6-4.8h7.6z"/></svg>
+                  </div>`;
+              }).join('')
+              : '<p class="text-sm text-gray-500">No completed seasons yet</p>'}
           </div>
         </div>
 
