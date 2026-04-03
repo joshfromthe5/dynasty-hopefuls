@@ -1,67 +1,115 @@
 {
   "title": "League Constitution",
-  "lastUpdated": "2025-01-01",
+  "lastUpdated": "December 29, 2025",
   "sections": [
     {
-      "heading": "League Overview",
+      "heading": "Roster Positions",
       "rules": [
-        "Dynasty format — all players are kept year to year",
-        "12-team league, head-to-head scoring",
-        "PPR scoring (1 point per reception)",
-        "Regular season: Weeks 1–14, Playoffs: Weeks 15–17"
+        "1 Quarterback (QB)",
+        "2 Running Backs (RB)",
+        "2 Wide Receivers (WR)",
+        "1 Tight End (TE)",
+        "3 FLEX (W/R/T)",
+        "1 SUPERFLEX (Q/W/R/T)",
+        "14 Bench spots",
+        "1 IR slot"
       ]
     },
     {
-      "heading": "Roster Settings",
+      "heading": "Scoring — Passing",
       "rules": [
-        "Starters: 1 QB, 2 RB, 2 WR, 1 TE, 2 FLEX, 1 SUPERFLEX",
-        "Bench spots: 15",
-        "IR spots: 3",
-        "Taxi squad: 5 slots (rookies only in first year)"
+        "Passing yards: 1 point per 25 yards (0.04/yard)",
+        "Passing TD: 4 points",
+        "2-Pt Conversion: 2 points",
+        "Interception: -1 point",
+        "40+ Yard Completion Bonus: 1 point",
+        "40+ Yard Pass TD Bonus: 1 point",
+        "50+ Yard Pass TD Bonus: 2 points"
       ]
     },
     {
-      "heading": "Draft Rules",
+      "heading": "Scoring — Rushing",
       "rules": [
-        "Rookie draft: 4 rounds, held after the NFL draft",
-        "Draft order: Reverse order of final standings (non-playoff teams via lottery)",
-        "Draft picks can be traded up to 2 years in advance"
+        "Rushing TD: 6 points",
+        "2-Pt Conversion: 2 points",
+        "40+ Yard Rush Bonus: 1 point",
+        "40+ Yard Rush TD Bonus: 1 point",
+        "50+ Yard Rush TD Bonus: 2 points"
       ]
     },
     {
-      "heading": "Trading",
+      "heading": "Scoring — Receiving",
       "rules": [
-        "Trades are processed immediately with no review period",
-        "No trade deadline during the regular season",
-        "Offseason trading opens the day after the championship",
-        "Draft picks and FAAB can be included in trades"
+        "Reception: 1 point (PPR)",
+        "Receiving yards: 1 point per 10 yards (0.10/yard)",
+        "Receiving TD: 6 points",
+        "2-Pt Conversion: 2 points",
+        "40+ Yard Reception Bonus: 1 point",
+        "40+ Yard Reception TD Bonus: 1 point",
+        "50+ Yard Reception TD Bonus: 2 points",
+        "TE Reception Bonus: 0.5 points"
+      ]
+    },
+    {
+      "heading": "Scoring — Kicking",
+      "rules": [
+        "FG Made (0-19 yards): 3 points",
+        "FG Made (20-29 yards): 3 points",
+        "FG Made (30-39 yards): 3 points",
+        "FG Made (40-49 yards): 4 points",
+        "FG Made (50+ yards): 5 points",
+        "PAT Made: 1 point",
+        "FG Missed: -1 point"
       ]
     },
     {
       "heading": "Waivers & Free Agency",
       "rules": [
-        "FAAB (Free Agent Acquisition Budget): $100 per season",
-        "Waivers process Wednesday mornings",
-        "Continuous waivers after initial Wednesday processing",
-        "FAAB does not roll over between seasons"
+        "Waiver type: FAAB Bidding",
+        "FAAB budget: $500 per season",
+        "Minimum bid: $0",
+        "Waivers clear: Tuesday (2 AM CDT) after games",
+        "Players are on waivers for 1 day after being dropped",
+        "Custom daily waivers enabled"
+      ]
+    },
+    {
+      "heading": "Trading",
+      "rules": [
+        "Time to review pending trades: 1 day",
+        "Trade deadline: Week 12",
+        "Draft pick trading is allowed"
       ]
     },
     {
       "heading": "Playoffs",
       "rules": [
-        "6 teams make the playoffs",
-        "Top 2 seeds receive a first-round bye",
-        "Seeding based on record, then total points for as tiebreaker",
-        "Consolation bracket determines draft order for non-playoff teams"
+        "Playoffs start: Week 15",
+        "8 playoff teams",
+        "One week per round",
+        "Playoff seeding: Default (teams stay on initial side of bracket)",
+        "Lower bracket: Toilet Bowl (losing team from each round gets flushed to the next round)"
+      ]
+    },
+    {
+      "heading": "Injured Reserve",
+      "rules": [
+        "IR slots: 1",
+        "Suspended players allowed on IR"
+      ]
+    },
+    {
+      "heading": "Other Settings",
+      "rules": [
+        "Supplemental draft rounds: 3",
+        "Bench players cannot be dropped after their game starts"
       ]
     },
     {
       "heading": "Dues & Payouts",
       "rules": [
-        "Annual dues: $50 per team",
-        "1st place: $350",
-        "2nd place: $150",
-        "Regular season high scorer: $100"
+        "Annual dues: $20 per team",
+        "Dues must be paid before draft day — the draft will not start until everyone has paid"
       ]
     }
   ]
