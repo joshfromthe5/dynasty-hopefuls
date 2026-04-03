@@ -16,7 +16,6 @@ export async function render(container) {
       return;
     }
 
-    // Show most recent draft by default
     let selectedIdx = 0;
 
     async function drawDraft() {

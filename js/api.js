@@ -252,6 +252,13 @@ export const Api = {
     return map;
   },
 
+  async getRookieProfiles() {
+    if (cache.rookieProfiles) return cache.rookieProfiles;
+    const data = await fetchJSON('/data/rookies.json');
+    cache.rookieProfiles = data;
+    return data;
+  },
+
   clearCache() {
     Object.keys(cache).forEach(k => delete cache[k]);
   },

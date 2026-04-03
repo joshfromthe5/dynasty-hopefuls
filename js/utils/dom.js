@@ -61,6 +61,35 @@ export function playerLink(playerId, name, extraClasses = '') {
   return a;
 }
 
+export function scoreGauge(score, size = 48) {
+  const clamped = Math.max(0, Math.min(100, Math.round(score)));
+  const radius = (size - 6) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - clamped / 100);
+
+  // Red (0) -> Yellow (50) -> Green (100)
+  let r, g;
+  if (clamped <= 50) {
+    r = 239;
+    g = Math.round(68 + (clamped / 50) * (180 - 68));
+  } else {
+    r = Math.round(239 - ((clamped - 50) / 50) * (239 - 34));
+    g = Math.round(180 + ((clamped - 50) / 50) * (197 - 180));
+  }
+  const color = `rgb(${r}, ${g}, 68)`;
+
+  const fontSize = size <= 36 ? 11 : size <= 48 ? 13 : 16;
+
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" class="shrink-0">
+    <circle cx="${size / 2}" cy="${size / 2}" r="${radius}" fill="none" stroke="#1f2937" stroke-width="3"/>
+    <circle cx="${size / 2}" cy="${size / 2}" r="${radius}" fill="none" stroke="${color}" stroke-width="3"
+      stroke-linecap="round" stroke-dasharray="${circumference}" stroke-dashoffset="${offset}"
+      transform="rotate(-90 ${size / 2} ${size / 2})" style="transition: stroke-dashoffset 0.6s ease"/>
+    <text x="${size / 2}" y="${size / 2}" text-anchor="middle" dominant-baseline="central"
+      fill="${color}" font-size="${fontSize}" font-weight="700">${clamped}</text>
+  </svg>`;
+}
+
 export function injuryBadge(status) {
   if (!status) return null;
   const colors = {

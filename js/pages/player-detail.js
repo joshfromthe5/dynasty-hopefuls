@@ -1,8 +1,21 @@
 import { Api } from '../api.js';
 import { positionColor, getPlayerPhotoUrl } from '../utils/format.js';
-import { showLoading, showError } from '../utils/dom.js';
+import { showLoading, showError, scoreGauge } from '../utils/dom.js';
 
 export const title = (param) => 'Player Details';
+
+function findRookieProfile(player, profiles) {
+  const pName = `${player.first_name} ${player.last_name}`.toLowerCase().trim();
+  return profiles.find(r => r.name.toLowerCase() === pName) || null;
+}
+
+function autoRookieScore(player) {
+  const rank = player.search_rank;
+  if (rank && rank < 100) return 25;
+  if (rank && rank < 300) return 18;
+  if (rank && rank < 600) return 12;
+  return 8;
+}
 
 export async function render(container, playerId) {
   if (!playerId) {
@@ -13,10 +26,11 @@ export async function render(container, playerId) {
   showLoading(container);
 
   try {
-    const [allPlayers, ownershipMap, rosterMap] = await Promise.all([
+    const [allPlayers, ownershipMap, rosterMap, rookieProfiles] = await Promise.all([
       Api.getPlayers(),
       Api.getPlayerOwnershipMap(),
       Api.getRosterMap(),
+      Api.getRookieProfiles().catch(() => []),
     ]);
 
     const player = allPlayers[playerId];
@@ -29,6 +43,9 @@ export async function render(container, playerId) {
     const rosterId = ownershipMap[playerId];
     const rosterOwner = rosterId ? rosterMap[rosterId]?.owner : null;
     const injury = player.injury_status;
+    const isRookie = player.years_exp === 0;
+    const profile = isRookie ? findRookieProfile(player, rookieProfiles) : null;
+    const rookieScore = profile ? Math.max(5, Math.min(99, 100 - profile.rank * 3)) : null;
 
     const injuryColors = {
       Out: 'bg-red-500/20 text-red-400 border-red-500/30',
@@ -41,7 +58,6 @@ export async function render(container, playerId) {
       Suspension: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
     };
 
-    // Fetch news in background
     let newsArticles = [];
     try {
       const allNews = await Api.getNews();
@@ -72,15 +88,118 @@ export async function render(container, playerId) {
                 <span class="text-sm text-gray-400">${player.team || 'Free Agent'}</span>
                 ${player.number ? `<span class="text-sm text-gray-500">#${player.number}</span>` : ''}
               </div>
-              <div class="mt-2">
+              <div class="flex flex-wrap gap-2 mt-2">
                 ${rosterId
                   ? `<span class="text-xs font-medium px-2 py-1 rounded-full bg-blue-500/20 text-blue-400">Owned by ${rosterOwner?.name || `Team ${rosterId}`}</span>`
                   : `<span class="text-xs font-medium px-2 py-1 rounded-full bg-green-500/20 text-green-400">Free Agent</span>`
                 }
+                ${isRookie ? `<span class="text-xs font-medium px-2 py-1 rounded-full bg-purple-500/20 text-purple-400">Rookie</span>` : ''}
               </div>
             </div>
           </div>
         </div>
+
+        ${isRookie && profile ? `
+        <div class="bg-surface rounded-2xl border border-purple-500/30 p-5">
+          <div class="flex items-center gap-2 mb-4">
+            <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
+            <h2 class="font-semibold text-purple-400">Rookie Report</h2>
+          </div>
+
+          <div class="flex items-center gap-6 mb-4">
+            <div class="flex flex-col items-center">
+              ${scoreGauge(rookieScore, 72)}
+              <span class="text-xs text-gray-500 mt-1">Draft Grade</span>
+            </div>
+            <div class="flex-1 grid grid-cols-2 gap-3">
+              <div class="bg-gray-800/30 rounded-lg p-2.5 text-center">
+                <div class="text-xs text-gray-500 mb-0.5">Dynasty Rank</div>
+                <div class="text-sm font-semibold">#${profile.rank}</div>
+              </div>
+              <div class="bg-gray-800/30 rounded-lg p-2.5 text-center">
+                <div class="text-xs text-gray-500 mb-0.5">Projection</div>
+                <div class="text-sm font-semibold">${profile.proj}</div>
+              </div>
+              <div class="bg-gray-800/30 rounded-lg p-2.5 text-center">
+                <div class="text-xs text-gray-500 mb-0.5">Comp</div>
+                <div class="text-sm font-semibold">${profile.comp}</div>
+              </div>
+              <div class="bg-gray-800/30 rounded-lg p-2.5 text-center">
+                <div class="text-xs text-gray-500 mb-0.5">NFL Status</div>
+                <div class="text-sm font-semibold">${player.team || 'Pre-Draft'}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Strengths</div>
+            <div class="flex flex-wrap gap-1.5">
+              ${profile.strengths.map(s => `<span class="text-xs font-medium px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-400">${s}</span>`).join('')}
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Fantasy Outlook</div>
+            <p class="text-sm text-gray-300 leading-relaxed">${profile.outlook}</p>
+          </div>
+
+          ${player.college || player.height || player.weight || player.age ? `
+          <div class="pt-4 border-t border-gray-800/50">
+            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Prospect Profile</div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+              ${player.college ? `<div class="bg-gray-800/30 rounded-lg p-2.5"><div class="text-xs text-gray-500 mb-0.5">College</div><div class="text-sm font-medium">${player.college}</div></div>` : ''}
+              ${player.age ? `<div class="bg-gray-800/30 rounded-lg p-2.5"><div class="text-xs text-gray-500 mb-0.5">Age</div><div class="text-sm font-medium">${player.age}</div></div>` : ''}
+              ${player.height ? `<div class="bg-gray-800/30 rounded-lg p-2.5"><div class="text-xs text-gray-500 mb-0.5">Height</div><div class="text-sm font-medium">${player.height}</div></div>` : ''}
+              ${player.weight ? `<div class="bg-gray-800/30 rounded-lg p-2.5"><div class="text-xs text-gray-500 mb-0.5">Weight</div><div class="text-sm font-medium">${player.weight} lbs</div></div>` : ''}
+            </div>
+          </div>
+          ` : ''}
+        </div>
+        ` : isRookie ? `
+        <div class="bg-surface rounded-2xl border border-gray-700/50 p-5">
+          <div class="flex items-center gap-2 mb-4">
+            <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <h2 class="font-semibold text-purple-400">Rookie Report</h2>
+            <span class="ml-auto text-xs text-gray-600">Unranked prospect</span>
+          </div>
+          <div class="flex items-center gap-6 mb-4">
+            <div class="flex flex-col items-center">
+              ${scoreGauge(autoRookieScore(player), 72)}
+              <span class="text-xs text-gray-500 mt-1">Grade</span>
+            </div>
+            <div class="flex-1 grid grid-cols-2 gap-3">
+              <div class="bg-gray-800/30 rounded-lg p-2.5 text-center">
+                <div class="text-xs text-gray-500 mb-0.5">Position</div>
+                <div class="text-sm font-semibold">${pos}</div>
+              </div>
+              <div class="bg-gray-800/30 rounded-lg p-2.5 text-center">
+                <div class="text-xs text-gray-500 mb-0.5">NFL Status</div>
+                <div class="text-sm font-semibold">${player.team || 'Pre-Draft'}</div>
+              </div>
+              <div class="bg-gray-800/30 rounded-lg p-2.5 text-center">
+                <div class="text-xs text-gray-500 mb-0.5">Projection</div>
+                <div class="text-sm font-semibold">${player.team ? 'UDFA / Late' : 'Day 3 / UDFA'}</div>
+              </div>
+              <div class="bg-gray-800/30 rounded-lg p-2.5 text-center">
+                <div class="text-xs text-gray-500 mb-0.5">Dynasty Tier</div>
+                <div class="text-sm font-semibold">Deep stash</div>
+              </div>
+            </div>
+          </div>
+          <p class="text-sm text-gray-400 mb-4">Late-round or undrafted prospect outside the top 60 dynasty rookie rankings. Monitor draft capital and landing spot for potential value.</p>
+          ${player.college || player.height || player.weight || player.age ? `
+          <div class="pt-4 border-t border-gray-800/50">
+            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Prospect Profile</div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+              ${player.college ? `<div class="bg-gray-800/30 rounded-lg p-2.5"><div class="text-xs text-gray-500 mb-0.5">College</div><div class="text-sm font-medium">${player.college}</div></div>` : ''}
+              ${player.age ? `<div class="bg-gray-800/30 rounded-lg p-2.5"><div class="text-xs text-gray-500 mb-0.5">Age</div><div class="text-sm font-medium">${player.age}</div></div>` : ''}
+              ${player.height ? `<div class="bg-gray-800/30 rounded-lg p-2.5"><div class="text-xs text-gray-500 mb-0.5">Height</div><div class="text-sm font-medium">${player.height}</div></div>` : ''}
+              ${player.weight ? `<div class="bg-gray-800/30 rounded-lg p-2.5"><div class="text-xs text-gray-500 mb-0.5">Weight</div><div class="text-sm font-medium">${player.weight} lbs</div></div>` : ''}
+            </div>
+          </div>
+          ` : ''}
+        </div>
+        ` : ''}
 
         <!-- Injury Status -->
         ${injury ? `
@@ -98,7 +217,8 @@ export async function render(container, playerId) {
           </div>
         ` : ''}
 
-        <!-- Player Info -->
+        <!-- Player Info (non-rookie or supplemental) -->
+        ${!isRookie ? `
         <div class="bg-surface rounded-2xl border border-gray-800 p-5">
           <h2 class="font-semibold mb-3">Player Info</h2>
           <div class="grid grid-cols-2 gap-3">
@@ -112,6 +232,7 @@ export async function render(container, playerId) {
             ${infoItem('Team', player.team || 'None')}
           </div>
         </div>
+        ` : ''}
 
         <!-- News -->
         <div class="bg-surface rounded-2xl border border-gray-800 p-5">
