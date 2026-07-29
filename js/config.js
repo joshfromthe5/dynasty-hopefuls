@@ -3,6 +3,8 @@ export const CONFIG = {
   SPORT: 'nfl',
   BASE_URL: 'https://api.sleeper.app/v1',
   CDN_URL: 'https://sleepercdn.com',
+  DYNASTY_DEALER_URL: 'https://www.dynastydealer.com/api/player-values',
   PLAYER_CACHE_TTL: 24 * 60 * 60 * 1000, // 24 hours
   NEWS_CACHE_TTL: 15 * 60 * 1000, // 15 minutes
+  TRADE_VALUES_CACHE_TTL: 60 * 60 * 1000, // 1 hour
 };

@@ -22,6 +22,7 @@ const pageModules = {
   taxi: () => import('./pages/taxi.js'),
   constitution: () => import('./pages/constitution.js'),
   'trade-review': () => import('./pages/trade-review.js'),
+  'trade-calculator': () => import('./pages/trade-calculator.js'),
 };
 
 let currentPage = null;

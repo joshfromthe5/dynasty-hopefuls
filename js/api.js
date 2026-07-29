@@ -259,6 +259,16 @@ export const Api = {
     return data;
   },
 
+  async getDynastyValues() {
+    const key = 'dynastyValues';
+    if (cache[key] && cache[key].timestamp && Date.now() - cache[key].timestamp < CONFIG.TRADE_VALUES_CACHE_TTL) {
+      return cache[key].data;
+    }
+    const data = await fetchJSON(`${CONFIG.DYNASTY_DEALER_URL}?perSlot=true`);
+    cache[key] = { data: data.players || [], timestamp: Date.now() };
+    return cache[key].data;
+  },
+
   clearCache() {
     Object.keys(cache).forEach(k => delete cache[k]);
   },
