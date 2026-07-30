@@ -25,7 +25,7 @@ export async function render(container) {
     const teams = Object.values(rosterMap).map(r => {
       const rosterPlayers = (r.players || [])
         .map(pid => ({ id: pid, ...players[pid] }))
-        .filter(p => p.position && !['OL', 'OT', 'OG', 'C', 'LS', 'P'].includes(p.position));
+        .filter(p => p.position && !['OL', 'OT', 'OG', 'C', 'LS', 'P', 'DL', 'LB', 'DB', 'DEF', 'IDP', 'K'].includes(p.position));
 
       const ages = rosterPlayers.filter(p => p.age).map(p => p.age);
       const avgAge = ages.length ? ages.reduce((s, a) => s + a, 0) / ages.length : 0;

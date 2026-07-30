@@ -83,7 +83,7 @@ export async function render(container, userId) {
     const rosterPlayers = currentRoster
       ? (currentRoster.players || [])
           .map(pid => ({ id: pid, ...players[pid] }))
-          .filter(p => p.position && !['OL', 'OT', 'OG', 'C', 'LS', 'P'].includes(p.position))
+          .filter(p => p.position && !['OL', 'OT', 'OG', 'C', 'LS', 'P', 'DL', 'LB', 'DB', 'DEF', 'IDP', 'K'].includes(p.position))
           .sort((a, b) => (a.search_rank || 9999) - (b.search_rank || 9999))
       : [];
 

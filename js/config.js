@@ -6,5 +6,6 @@ export const CONFIG = {
   DYNASTY_DEALER_URL: 'https://www.dynastydealer.com/api/player-values',
   PLAYER_CACHE_TTL: 24 * 60 * 60 * 1000, // 24 hours
   NEWS_CACHE_TTL: 15 * 60 * 1000, // 15 minutes
+  NEWS_RETENTION_MS: 30 * 24 * 60 * 60 * 1000, // 30 days
   TRADE_VALUES_CACHE_TTL: 60 * 60 * 1000, // 1 hour
 };

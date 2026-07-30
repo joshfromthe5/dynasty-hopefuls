@@ -28,6 +28,49 @@ function setCachedPlayers(data) {
   }
 }
 
+function newsArticleKey(article) {
+  return (article.link || article.title || '').trim().toLowerCase();
+}
+
+function newsArticleAge(article) {
+  if (!article.pubDate) return 0;
+  const t = new Date(article.pubDate).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
+function mergeNewsArchive(fresh) {
+  const cutoff = Date.now() - CONFIG.NEWS_RETENTION_MS;
+  let existing = [];
+  try {
+    const raw = localStorage.getItem('sleeper_news_archive');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      existing = Array.isArray(parsed) ? parsed : [];
+    }
+  } catch {
+    existing = [];
+  }
+
+  const map = new Map();
+  for (const article of [...existing, ...fresh]) {
+    const key = newsArticleKey(article);
+    if (!key) continue;
+    const age = newsArticleAge(article);
+    if (age && age < cutoff) continue;
+    if (!map.has(key) || newsArticleAge(article) > newsArticleAge(map.get(key))) {
+      map.set(key, article);
+    }
+  }
+
+  const merged = [...map.values()].sort((a, b) => newsArticleAge(b) - newsArticleAge(a));
+  try {
+    localStorage.setItem('sleeper_news_archive', JSON.stringify(merged));
+  } catch {
+    // localStorage full — keep returning merged data for this session
+  }
+  return merged;
+}
+
 export const Api = {
 
   async getLeague(leagueId) {
@@ -142,50 +185,48 @@ export const Api = {
       return cache[key].data;
     }
 
-    // Try Netlify function first (works in production)
+    let fresh = [];
+
+    // Try Netlify function first (production archive with 30-day retention)
     try {
-      const data = await fetchJSON('/.netlify/functions/news');
-      cache[key] = { data, timestamp: Date.now() };
-      return data;
+      fresh = await fetchJSON('/.netlify/functions/news');
     } catch {
-      // Netlify function unavailable (local dev) -- fall back to rss2json.com
-    }
-
-    try {
-      const feeds = [
-        'https://www.espn.com/espn/rss/nfl/news',
-        'https://www.cbssports.com/rss/headlines/nfl/',
-        'https://profootballtalk.nbcsports.com/feed/',
-        'https://www.pff.com/feed',
-      ];
-      const sourceNames = ['ESPN', 'CBS Sports', 'ProFootballTalk', 'PFF'];
-      const results = await Promise.allSettled(
-        feeds.map(async (url, i) => {
-          const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}`);
-          if (!res.ok) return [];
-          const json = await res.json();
-          if (json.status !== 'ok') return [];
-          return (json.items || []).map(item => ({
-            title: item.title,
-            link: item.link,
-            description: (item.description || '').replace(/<[^>]*>/g, '').slice(0, 200),
-            pubDate: item.pubDate,
-            source: sourceNames[i],
-          }));
-        })
-      );
-
-      const articles = [];
-      for (const r of results) {
-        if (r.status === 'fulfilled') articles.push(...r.value);
+      // Local fallback via rss2json.com
+      try {
+        const feeds = [
+          'https://www.espn.com/espn/rss/nfl/news',
+          'https://www.cbssports.com/rss/headlines/nfl/',
+          'https://profootballtalk.nbcsports.com/feed/',
+          'https://www.pff.com/feed',
+        ];
+        const sourceNames = ['ESPN', 'CBS Sports', 'ProFootballTalk', 'PFF'];
+        const results = await Promise.allSettled(
+          feeds.map(async (url, i) => {
+            const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}`);
+            if (!res.ok) return [];
+            const json = await res.json();
+            if (json.status !== 'ok') return [];
+            return (json.items || []).map(item => ({
+              title: item.title,
+              link: item.link,
+              description: (item.description || '').replace(/<[^>]*>/g, '').slice(0, 200),
+              pubDate: item.pubDate,
+              source: sourceNames[i],
+            }));
+          })
+        );
+        for (const r of results) {
+          if (r.status === 'fulfilled') fresh.push(...r.value);
+        }
+      } catch {
+        fresh = [];
       }
-      articles.sort((a, b) => new Date(b.pubDate || 0) - new Date(a.pubDate || 0));
-      const limited = articles.slice(0, 100);
-      cache[key] = { data: limited, timestamp: Date.now() };
-      return limited;
-    } catch {
-      return [];
     }
+
+    // Merge into a local 30-day archive so articles stick around between visits
+    const archived = mergeNewsArchive(Array.isArray(fresh) ? fresh : []);
+    cache[key] = { data: archived, timestamp: Date.now() };
+    return archived;
   },
 
   // Walk the previous_league_id chain to build season list

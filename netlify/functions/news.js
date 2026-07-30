@@ -1,3 +1,5 @@
+import { getStore } from '@netlify/blobs';
+
 const RSS_FEEDS = [
   { url: 'https://www.espn.com/espn/rss/nfl/news', source: 'ESPN' },
   { url: 'https://www.cbssports.com/rss/headlines/nfl/', source: 'CBS Sports' },
@@ -6,9 +8,12 @@ const RSS_FEEDS = [
   { url: 'https://www.pff.com/feed', source: 'PFF' },
 ];
 
-let cachedResult = null;
-let cacheTimestamp = 0;
-const CACHE_TTL = 10 * 60 * 1000;
+const ARCHIVE_KEY = 'nfl-news-archive';
+const RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const FETCH_CACHE_TTL = 10 * 60 * 1000; // don't refetch RSS more than every 10 min
+
+let memoryCache = null;
+let memoryCacheTimestamp = 0;
 
 function parseRSSItems(xmlText, source) {
   const items = [];
@@ -19,7 +24,7 @@ function parseRSSItems(xmlText, source) {
     const itemXml = match[1];
     const title = extractTag(itemXml, 'title');
     const link = extractTag(itemXml, 'link') || extractStandaloneLink(itemXml);
-    const description = stripHtml(extractTag(itemXml, 'description'));
+    const description = stripHtml(extractTag(itemXml, 'description')).slice(0, 300);
     const pubDate = extractTag(itemXml, 'pubDate');
 
     if (title) {
@@ -54,19 +59,55 @@ function stripHtml(html) {
     .trim();
 }
 
-export default async (req) => {
-  if (cachedResult && Date.now() - cacheTimestamp < CACHE_TTL) {
-    return new Response(JSON.stringify(cachedResult), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'public, max-age=600',
-      },
-    });
+function articleKey(article) {
+  return (article.link || article.title || '').trim().toLowerCase();
+}
+
+function articleAge(article) {
+  if (!article.pubDate) return 0;
+  const t = new Date(article.pubDate).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
+function pruneAndMerge(existing, fresh) {
+  const cutoff = Date.now() - RETENTION_MS;
+  const map = new Map();
+
+  for (const article of [...existing, ...fresh]) {
+    const key = articleKey(article);
+    if (!key) continue;
+    const age = articleAge(article);
+    // Keep articles without dates if they just arrived; drop undated ones older than archive merge
+    if (age && age < cutoff) continue;
+    if (!map.has(key) || articleAge(article) > articleAge(map.get(key))) {
+      map.set(key, article);
+    }
   }
 
-  const allArticles = [];
+  return [...map.values()].sort((a, b) => articleAge(b) - articleAge(a));
+}
 
+async function loadArchive() {
+  try {
+    const store = getStore('news');
+    const data = await store.get(ARCHIVE_KEY, { type: 'json' });
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveArchive(articles) {
+  try {
+    const store = getStore('news');
+    await store.setJSON(ARCHIVE_KEY, articles);
+  } catch {
+    // Blobs unavailable (e.g. local without netlify dev) — skip persist
+  }
+}
+
+async function fetchFreshArticles() {
+  const allArticles = [];
   const results = await Promise.allSettled(
     RSS_FEEDS.map(async (feed) => {
       try {
@@ -74,10 +115,9 @@ export default async (req) => {
         const timeout = setTimeout(() => controller.abort(), 8000);
         const res = await fetch(feed.url, {
           signal: controller.signal,
-          headers: { 'User-Agent': 'SleeperLeagueSite/1.0' },
+          headers: { 'User-Agent': 'HopefulsDynasty/1.0' },
         });
         clearTimeout(timeout);
-
         if (!res.ok) return [];
         const text = await res.text();
         return parseRSSItems(text, feed.source);
@@ -92,19 +132,36 @@ export default async (req) => {
       allArticles.push(...result.value);
     }
   }
+  return allArticles;
+}
 
-  allArticles.sort((a, b) => {
-    const da = a.pubDate ? new Date(a.pubDate).getTime() : 0;
-    const db = b.pubDate ? new Date(b.pubDate).getTime() : 0;
-    return db - da;
-  });
+export default async () => {
+  if (memoryCache && Date.now() - memoryCacheTimestamp < FETCH_CACHE_TTL) {
+    return new Response(JSON.stringify(memoryCache), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, max-age=600',
+      },
+    });
+  }
 
-  const limited = allArticles.slice(0, 100);
+  const [archive, fresh] = await Promise.all([
+    loadArchive(),
+    fetchFreshArticles(),
+  ]);
 
-  cachedResult = limited;
-  cacheTimestamp = Date.now();
+  const merged = pruneAndMerge(archive, fresh);
 
-  return new Response(JSON.stringify(limited), {
+  // Persist whenever we got new articles (or pruning changed the set)
+  if (fresh.length || merged.length !== archive.length) {
+    await saveArchive(merged);
+  }
+
+  memoryCache = merged;
+  memoryCacheTimestamp = Date.now();
+
+  return new Response(JSON.stringify(merged), {
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',

@@ -9,12 +9,48 @@ function findRookieProfile(player, profiles) {
   return profiles.find(r => r.name.toLowerCase() === pName) || null;
 }
 
-function autoRookieScore(player) {
-  const rank = player.search_rank;
-  if (rank && rank < 100) return 25;
-  if (rank && rank < 300) return 18;
-  if (rank && rank < 600) return 12;
-  return 8;
+function valueToGrade(value, maxValue) {
+  if (!value || !maxValue) return null;
+  return Math.max(5, Math.min(99, Math.round((value / maxValue) * 95)));
+}
+
+function formatValue(n) {
+  return Math.round(n).toLocaleString();
+}
+
+function getRookieDynastyInfo(playerId, allPlayers, dynastyValues) {
+  const rookies = Object.entries(allPlayers)
+    .filter(([, p]) => p.years_exp === 0 && p.active && p.position && !['OL', 'OT', 'OG', 'C', 'LS', 'P', 'DL', 'LB', 'DB', 'DEF', 'IDP', 'K'].includes(p.position))
+    .map(([id, p]) => ({ id, ...p }));
+
+  const valueById = {};
+  for (const v of dynastyValues) {
+    if (v.sleeper_id && v.position !== 'PICK') {
+      valueById[v.sleeper_id] = v.current_value || 0;
+    }
+  }
+
+  const valued = rookies
+    .filter(p => valueById[p.id])
+    .sort((a, b) => valueById[b.id] - valueById[a.id]);
+
+  if (!valued.length || !valueById[playerId]) return null;
+
+  const maxValue = valueById[valued[0].id];
+  const classRank = valued.findIndex(p => p.id === playerId) + 1;
+  const player = valued.find(p => p.id === playerId);
+  const pos = player.position || player.fantasy_positions?.[0];
+  const posRookies = valued.filter(r => r.position === pos);
+  const posRank = posRookies.findIndex(r => r.id === playerId) + 1;
+
+  return {
+    value: valueById[playerId],
+    score: valueToGrade(valueById[playerId], maxValue),
+    classRank,
+    classSize: valued.length,
+    posRank,
+    posSize: posRookies.length,
+  };
 }
 
 export async function render(container, playerId) {
@@ -26,11 +62,12 @@ export async function render(container, playerId) {
   showLoading(container);
 
   try {
-    const [allPlayers, ownershipMap, rosterMap, rookieProfiles] = await Promise.all([
+    const [allPlayers, ownershipMap, rosterMap, rookieProfiles, dynastyValues] = await Promise.all([
       Api.getPlayers(),
       Api.getPlayerOwnershipMap(),
       Api.getRosterMap(),
       Api.getRookieProfiles().catch(() => []),
+      Api.getDynastyValues().catch(() => []),
     ]);
 
     const player = allPlayers[playerId];
@@ -45,7 +82,8 @@ export async function render(container, playerId) {
     const injury = player.injury_status;
     const isRookie = player.years_exp === 0;
     const profile = isRookie ? findRookieProfile(player, rookieProfiles) : null;
-    const rookieScore = profile ? Math.max(5, Math.min(99, 100 - profile.rank * 3)) : null;
+    const dynastyInfo = isRookie ? getRookieDynastyInfo(playerId, allPlayers, dynastyValues) : null;
+    const rookieScore = dynastyInfo?.score || (profile ? Math.max(5, Math.min(99, 100 - profile.rank * 3)) : null);
 
     const injuryColors = {
       Out: 'bg-red-500/20 text-red-400 border-red-500/30',
@@ -69,15 +107,15 @@ export async function render(container, playerId) {
       });
     } catch {}
 
+    const hasRichReport = isRookie && (dynastyInfo || profile);
+
     container.innerHTML = `
       <div class="space-y-4">
-        <!-- Back button -->
         <button onclick="history.back()" class="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-200 transition-colors">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
           Back
         </button>
 
-        <!-- Player Header -->
         <div class="bg-surface rounded-2xl border border-gray-800 p-5">
           <div class="flex items-start gap-4">
             <img src="${getPlayerPhotoUrl(playerId)}" class="w-20 h-20 rounded-xl object-cover bg-gray-800" alt="${player.first_name} ${player.last_name}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 80 80%22><rect fill=%22%23374151%22 width=%2280%22 height=%2280%22/><text x=%2240%22 y=%2248%22 text-anchor=%22middle%22 fill=%22%239CA3AF%22 font-size=%2228%22>${(player.first_name || '?')[0]}</text></svg>'">
@@ -99,7 +137,7 @@ export async function render(container, playerId) {
           </div>
         </div>
 
-        ${isRookie && profile ? `
+        ${hasRichReport ? `
         <div class="bg-surface rounded-2xl border border-purple-500/30 p-5">
           <div class="flex items-center gap-2 mb-4">
             <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
@@ -108,21 +146,21 @@ export async function render(container, playerId) {
 
           <div class="flex items-center gap-6 mb-4">
             <div class="flex flex-col items-center">
-              ${scoreGauge(rookieScore, 72)}
+              ${scoreGauge(rookieScore || 20, 72)}
               <span class="text-xs text-gray-500 mt-1">Draft Grade</span>
             </div>
             <div class="flex-1 grid grid-cols-2 gap-3">
               <div class="bg-gray-800/30 rounded-lg p-2.5 text-center">
                 <div class="text-xs text-gray-500 mb-0.5">Dynasty Rank</div>
-                <div class="text-sm font-semibold">#${profile.rank}</div>
+                <div class="text-sm font-semibold">${dynastyInfo ? `#${dynastyInfo.classRank}` : profile ? `#${profile.rank}` : '—'}</div>
               </div>
               <div class="bg-gray-800/30 rounded-lg p-2.5 text-center">
-                <div class="text-xs text-gray-500 mb-0.5">Projection</div>
-                <div class="text-sm font-semibold">${profile.proj}</div>
+                <div class="text-xs text-gray-500 mb-0.5">${dynastyInfo ? 'Trade Value' : 'Projection'}</div>
+                <div class="text-sm font-semibold">${dynastyInfo ? formatValue(dynastyInfo.value) : (profile?.proj || '—')}</div>
               </div>
               <div class="bg-gray-800/30 rounded-lg p-2.5 text-center">
-                <div class="text-xs text-gray-500 mb-0.5">Comp</div>
-                <div class="text-sm font-semibold">${profile.comp}</div>
+                <div class="text-xs text-gray-500 mb-0.5">${profile ? 'Comp' : `${pos} Rank`}</div>
+                <div class="text-sm font-semibold">${profile ? profile.comp : (dynastyInfo ? `${dynastyInfo.posRank} / ${dynastyInfo.posSize}` : '—')}</div>
               </div>
               <div class="bg-gray-800/30 rounded-lg p-2.5 text-center">
                 <div class="text-xs text-gray-500 mb-0.5">NFL Status</div>
@@ -131,17 +169,29 @@ export async function render(container, playerId) {
             </div>
           </div>
 
+          ${dynastyInfo ? `
+          <div class="mb-4 bg-gray-800/20 rounded-lg p-3 text-xs text-gray-400">
+            Class rank <span class="text-gray-200 font-medium">#${dynastyInfo.classRank} / ${dynastyInfo.classSize}</span>
+            ${dynastyInfo.posRank ? ` · ${pos} rank <span class="text-gray-200 font-medium">#${dynastyInfo.posRank} / ${dynastyInfo.posSize}</span>` : ''}
+            · Values by <a href="https://www.dynastydealer.com" target="_blank" rel="noopener" class="text-emerald-400 hover:underline">Dynasty Dealer</a>
+          </div>
+          ` : ''}
+
+          ${profile?.strengths?.length ? `
           <div class="mb-4">
             <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Strengths</div>
             <div class="flex flex-wrap gap-1.5">
               ${profile.strengths.map(s => `<span class="text-xs font-medium px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-400">${s}</span>`).join('')}
             </div>
           </div>
+          ` : ''}
 
+          ${profile?.outlook ? `
           <div class="mb-4">
             <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Fantasy Outlook</div>
             <p class="text-sm text-gray-300 leading-relaxed">${profile.outlook}</p>
           </div>
+          ` : ''}
 
           ${player.college || player.height || player.weight || player.age ? `
           <div class="pt-4 border-t border-gray-800/50">
@@ -160,11 +210,11 @@ export async function render(container, playerId) {
           <div class="flex items-center gap-2 mb-4">
             <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <h2 class="font-semibold text-purple-400">Rookie Report</h2>
-            <span class="ml-auto text-xs text-gray-600">Unranked prospect</span>
+            <span class="ml-auto text-xs text-gray-600">No Dynasty Dealer value yet</span>
           </div>
           <div class="flex items-center gap-6 mb-4">
             <div class="flex flex-col items-center">
-              ${scoreGauge(autoRookieScore(player), 72)}
+              ${scoreGauge(15, 72)}
               <span class="text-xs text-gray-500 mt-1">Grade</span>
             </div>
             <div class="flex-1 grid grid-cols-2 gap-3">
@@ -186,7 +236,7 @@ export async function render(container, playerId) {
               </div>
             </div>
           </div>
-          <p class="text-sm text-gray-400 mb-4">Late-round or undrafted prospect outside the top 60 dynasty rookie rankings. Monitor draft capital and landing spot for potential value.</p>
+          <p class="text-sm text-gray-400 mb-4">This prospect doesn't currently have a Dynasty Dealer trade value. Monitor draft capital and landing spot.</p>
           ${player.college || player.height || player.weight || player.age ? `
           <div class="pt-4 border-t border-gray-800/50">
             <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Prospect Profile</div>
@@ -201,7 +251,6 @@ export async function render(container, playerId) {
         </div>
         ` : ''}
 
-        <!-- Injury Status -->
         ${injury ? `
           <div class="bg-surface rounded-2xl border ${injuryColors[injury]?.split(' ').pop() || 'border-gray-800'} p-4">
             <div class="flex items-center gap-3">
@@ -217,7 +266,6 @@ export async function render(container, playerId) {
           </div>
         ` : ''}
 
-        <!-- Player Info (non-rookie or supplemental) -->
         ${!isRookie ? `
         <div class="bg-surface rounded-2xl border border-gray-800 p-5">
           <h2 class="font-semibold mb-3">Player Info</h2>
@@ -234,7 +282,6 @@ export async function render(container, playerId) {
         </div>
         ` : ''}
 
-        <!-- News -->
         <div class="bg-surface rounded-2xl border border-gray-800 p-5">
           <h2 class="font-semibold mb-3">Recent News</h2>
           ${newsArticles.length ? `
@@ -251,7 +298,7 @@ export async function render(container, playerId) {
               `).join('')}
             </div>
           ` : `
-            <p class="text-sm text-gray-500">No recent news found for this player. News is pulled from ESPN, CBS Sports, and other sources via RSS.</p>
+            <p class="text-sm text-gray-500">No news found for this player in the last 30 days. News is pulled from ESPN, CBS Sports, PFF, and other sources via RSS.</p>
           `}
         </div>
       </div>`;

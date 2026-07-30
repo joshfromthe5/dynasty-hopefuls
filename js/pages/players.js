@@ -1,5 +1,5 @@
 import { Api } from '../api.js';
-import { positionColor, getPlayerPhotoUrl } from '../utils/format.js';
+import { getPlayerPhotoUrl } from '../utils/format.js';
 import { showLoading, showError, scoreGauge } from '../utils/dom.js';
 
 export const title = 'Players';
@@ -11,39 +11,67 @@ function matchRookieProfile(player, profiles) {
   return profiles.find(r => r.name.toLowerCase() === pName) || null;
 }
 
-function buildRookieScoreMap(rookieList, profiles) {
-  const scoreMap = {};
-  for (const p of rookieList) {
-    const profile = matchRookieProfile(p, profiles);
-    if (profile) {
-      scoreMap[p.id] = Math.max(5, Math.min(99, 100 - profile.rank * 3));
+function valueToGrade(value, maxValue) {
+  if (!value || !maxValue) return null;
+  return Math.max(5, Math.min(99, Math.round((value / maxValue) * 95)));
+}
+
+function buildRookieScoreMap(rookieList, dynastyValues) {
+  const valueById = {};
+  for (const v of dynastyValues) {
+    if (v.sleeper_id && v.position !== 'PICK') {
+      valueById[v.sleeper_id] = v.current_value || 0;
     }
   }
+
+  const valued = rookieList
+    .filter(p => valueById[p.id])
+    .sort((a, b) => valueById[b.id] - valueById[a.id]);
+
+  const maxValue = valued.length ? valueById[valued[0].id] : 0;
+  const scoreMap = {};
+  const valueMap = {};
+  const rankMap = {};
+
+  valued.forEach((p, i) => {
+    scoreMap[p.id] = valueToGrade(valueById[p.id], maxValue);
+    valueMap[p.id] = valueById[p.id];
+    rankMap[p.id] = i + 1;
+  });
+
   const unranked = rookieList.filter(p => !scoreMap[p.id]);
   unranked.sort((a, b) => (a.search_rank || 99999) - (b.search_rank || 99999));
   unranked.forEach((p, i) => {
-    scoreMap[p.id] = Math.max(5, Math.min(30, 30 - Math.floor(i / unranked.length * 25)));
+    scoreMap[p.id] = Math.max(5, Math.min(25, 25 - Math.floor((i / Math.max(unranked.length, 1)) * 20)));
   });
-  return scoreMap;
+
+  return { scoreMap, valueMap, rankMap, valuedCount: valued.length };
+}
+
+function formatValue(n) {
+  return Math.round(n).toLocaleString();
 }
 
 export async function render(container) {
   showLoading(container);
 
   try {
-    const [allPlayers, ownershipMap, rosterMap, rookieProfiles] = await Promise.all([
+    const [allPlayers, ownershipMap, rosterMap, rookieProfiles, dynastyValues] = await Promise.all([
       Api.getPlayers(),
       Api.getPlayerOwnershipMap(),
       Api.getRosterMap(),
       Api.getRookieProfiles().catch(() => []),
+      Api.getDynastyValues().catch(() => []),
     ]);
 
+    const excludedPositions = ['OL', 'OT', 'OG', 'C', 'LS', 'P', 'DL', 'LB', 'DB', 'DEF', 'IDP', 'K'];
     const playerList = Object.entries(allPlayers)
       .map(([id, p]) => ({ id, ...p }))
-      .filter(p => p.active && p.position && !['OL', 'OT', 'OG', 'C', 'LS', 'P'].includes(p.position));
+      .filter(p => p.active && p.position && !excludedPositions.includes(p.position));
 
     const allRookies = playerList.filter(p => p.years_exp === 0);
-    const rookieScoreMap = buildRookieScoreMap(allRookies, rookieProfiles);
+    const { scoreMap: rookieScoreMap, valueMap: rookieValueMap, rankMap: rookieRankMap, valuedCount } =
+      buildRookieScoreMap(allRookies, dynastyValues);
 
     let searchQuery = '';
     let posFilter = 'ALL';
@@ -75,8 +103,18 @@ export async function render(container) {
       }
 
       if (availFilter === 'ROOKIES') {
-        list = list.map(p => ({ ...p, _rookieScore: rookieScoreMap[p.id] || 20 }));
-        list.sort((a, b) => b._rookieScore - a._rookieScore);
+        list = list.map(p => ({
+          ...p,
+          _rookieScore: rookieScoreMap[p.id] || 20,
+          _dynastyValue: rookieValueMap[p.id] || null,
+          _dynastyRank: rookieRankMap[p.id] || null,
+        }));
+        list.sort((a, b) => {
+          if (a._dynastyValue && b._dynastyValue) return b._dynastyValue - a._dynastyValue;
+          if (a._dynastyValue) return -1;
+          if (b._dynastyValue) return 1;
+          return b._rookieScore - a._rookieScore;
+        });
       } else {
         list.sort((a, b) => (a.search_rank || 9999) - (b.search_rank || 9999));
       }
@@ -94,7 +132,9 @@ export async function render(container) {
       if (!resultsEl) return;
 
       resultsEl.innerHTML = `
-        ${isRookieMode ? `<div class="text-xs text-gray-500 mb-2 px-1">${filtered.length} rookies · Grades based on dynasty consensus rankings</div>` : `<div class="text-xs text-gray-500 mb-2 px-1">${filtered.length} players</div>`}
+        ${isRookieMode
+          ? `<div class="text-xs text-gray-500 mb-2 px-1">${filtered.length} rookies · ${valuedCount} graded via <a href="https://www.dynastydealer.com" target="_blank" rel="noopener" class="text-emerald-400 hover:underline">Dynasty Dealer</a></div>`
+          : `<div class="text-xs text-gray-500 mb-2 px-1">${filtered.length} players</div>`}
         <div class="bg-surface rounded-xl border border-gray-800 divide-y divide-gray-800/50">
           ${page.length ? page.map(p => {
             const pos = p.position || p.fantasy_positions?.[0] || '?';
@@ -111,7 +151,9 @@ export async function render(container) {
                 <div class="flex-1 min-w-0">
                   <div class="text-sm font-medium truncate">${p.first_name} ${p.last_name}</div>
                   <div class="text-xs text-gray-500">${p.team || 'FA'} · ${pos}${p.number ? ` #${p.number}` : ''}${isRookieMode && p.college ? ` · ${p.college}` : ''}</div>
-                  ${profile ? `<div class="text-xs text-purple-400/80 truncate">${profile.proj} · Comp: ${profile.comp}</div>` : ''}
+                  ${isRookieMode && p._dynastyValue
+                    ? `<div class="text-xs text-emerald-400/80 truncate">#${p._dynastyRank} · Value ${formatValue(p._dynastyValue)}${profile ? ` · Comp: ${profile.comp}` : ''}</div>`
+                    : profile ? `<div class="text-xs text-purple-400/80 truncate">${profile.proj} · Comp: ${profile.comp}</div>` : ''}
                 </div>
                 ${injury ? `<span class="text-xs font-semibold px-1.5 py-0.5 rounded ${injury === 'Out' || injury === 'IR' ? 'bg-red-500/20 text-red-400' : injury === 'Questionable' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-gray-500/20 text-gray-400'}">${injury}</span>` : ''}
                 <span class="text-xs ${ownerName ? 'text-blue-400' : 'text-green-400'} shrink-0">${ownerName || 'FA'}</span>
@@ -126,7 +168,7 @@ export async function render(container) {
       });
     }
 
-    const positions = ['ALL', 'QB', 'RB', 'WR', 'TE', 'K', 'DEF', 'DL', 'LB', 'DB'];
+    const positions = ['ALL', 'QB', 'RB', 'WR', 'TE'];
     const availOptions = [
       { key: 'ALL', label: 'All' },
       { key: 'FA', label: 'Free Agents' },

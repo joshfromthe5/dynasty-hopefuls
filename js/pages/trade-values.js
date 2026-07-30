@@ -5,32 +5,57 @@ import { showLoading, showError } from '../utils/dom.js';
 export const title = 'Trade Values';
 
 const TIERS = [
-  { label: 'Elite', min: 1, max: 15, color: 'text-yellow-400', border: 'border-yellow-500/30', bg: 'bg-yellow-500/10' },
-  { label: 'Star', min: 16, max: 40, color: 'text-emerald-400', border: 'border-emerald-500/30', bg: 'bg-emerald-500/10' },
-  { label: 'Starter', min: 41, max: 80, color: 'text-blue-400', border: 'border-blue-500/30', bg: 'bg-blue-500/10' },
-  { label: 'Bench', min: 81, max: 160, color: 'text-gray-300', border: 'border-gray-600', bg: 'bg-gray-800/30' },
-  { label: 'Deep', min: 161, max: 300, color: 'text-gray-500', border: 'border-gray-700', bg: 'bg-gray-800/20' },
+  { label: 'Elite', min: 7000, color: 'text-yellow-400', border: 'border-yellow-500/30' },
+  { label: 'Star', min: 4500, color: 'text-emerald-400', border: 'border-emerald-500/30' },
+  { label: 'Starter', min: 2500, color: 'text-blue-400', border: 'border-blue-500/30' },
+  { label: 'Bench', min: 1000, color: 'text-gray-300', border: 'border-gray-600' },
+  { label: 'Deep', min: 0, color: 'text-gray-500', border: 'border-gray-700' },
 ];
+
+function formatValue(n) {
+  return Math.round(n).toLocaleString();
+}
+
+function tierFor(value) {
+  return TIERS.find(t => value >= t.min) || TIERS[TIERS.length - 1];
+}
 
 export async function render(container) {
   showLoading(container);
 
   try {
-    const [players, ownershipMap, rosterMap] = await Promise.all([
+    const [players, ownershipMap, rosterMap, dynastyValues] = await Promise.all([
       Api.getPlayers(),
       Api.getPlayerOwnershipMap(),
       Api.getRosterMap(),
+      Api.getDynastyValues().catch(() => []),
     ]);
+
+    const valueById = {};
+    for (const v of dynastyValues) {
+      if (v.sleeper_id && v.position !== 'PICK') {
+        valueById[v.sleeper_id] = v.current_value || 0;
+      }
+    }
 
     const rosteredPlayers = Object.entries(ownershipMap)
       .map(([pid, rid]) => {
         const p = players[pid];
         if (!p || !p.position) return null;
-        if (['OL', 'OT', 'OG', 'C', 'LS', 'P'].includes(p.position)) return null;
-        return { id: pid, ...p, rosterId: rid, ownerName: rosterMap[rid]?.owner?.name || `Team ${rid}` };
+        if (['OL', 'OT', 'OG', 'C', 'LS', 'P', 'DL', 'LB', 'DB', 'DEF', 'IDP', 'K'].includes(p.position)) return null;
+        const dynastyValue = valueById[pid];
+        if (dynastyValue == null) return null;
+        return {
+          id: pid,
+          ...p,
+          rosterId: rid,
+          ownerName: rosterMap[rid]?.owner?.name || `Team ${rid}`,
+          dynastyValue,
+          tier: tierFor(dynastyValue),
+        };
       })
       .filter(Boolean)
-      .sort((a, b) => (a.search_rank || 9999) - (b.search_rank || 9999));
+      .sort((a, b) => b.dynastyValue - a.dynastyValue);
 
     let posFilter = 'ALL';
 
@@ -40,13 +65,10 @@ export async function render(container) {
         list = list.filter(p => p.position === posFilter || p.fantasy_positions?.includes(posFilter));
       }
 
-      const tiered = TIERS.map(tier => {
-        const players = list.filter(p => {
-          const rank = p.search_rank || 9999;
-          return rank >= tier.min && rank <= tier.max;
-        });
-        return { ...tier, players };
-      }).filter(t => t.players.length > 0);
+      const tiered = TIERS.map(tier => ({
+        ...tier,
+        players: list.filter(p => p.tier.label === tier.label),
+      })).filter(t => t.players.length > 0);
 
       const resultsEl = document.getElementById('tv-results');
       if (!resultsEl) return;
@@ -69,13 +91,13 @@ export async function render(container) {
                   </div>
                   <div class="text-right shrink-0">
                     <div class="text-xs text-gray-500">${p.ownerName}</div>
-                    <div class="text-xs text-gray-600">#${p.search_rank || '—'}</div>
+                    <div class="text-xs font-semibold text-emerald-400">${formatValue(p.dynastyValue)}</div>
                   </div>
                 </a>`;
             }).join('')}
           </div>
         </div>
-      `).join('') : '<p class="text-center text-gray-500 py-8">No rostered players in this position</p>';
+      `).join('') : '<p class="text-center text-gray-500 py-8">No rostered players with dynasty values in this position</p>';
     }
 
     const positions = ['ALL', 'QB', 'RB', 'WR', 'TE'];
@@ -83,7 +105,7 @@ export async function render(container) {
     container.innerHTML = `
       <div class="space-y-3">
         <div class="bg-surface rounded-2xl border border-gray-800 p-4">
-          <p class="text-xs text-gray-400">Dynasty value tiers based on consensus rankings. Use these as a starting point for trade negotiations.</p>
+          <p class="text-xs text-gray-400">Live dynasty value tiers for rostered players from <a href="https://www.dynastydealer.com" target="_blank" rel="noopener" class="text-emerald-400 hover:underline">Dynasty Dealer</a>. Updates automatically — no redeploy needed.</p>
         </div>
         <div class="flex gap-2 overflow-x-auto no-scrollbar">
           ${positions.map(p => `
@@ -91,6 +113,7 @@ export async function render(container) {
           `).join('')}
         </div>
         <div id="tv-results"></div>
+        <p class="text-xs text-gray-600 text-center">Values by <a href="https://www.dynastydealer.com" target="_blank" rel="noopener" class="text-emerald-400 hover:underline">Dynasty Dealer</a></p>
       </div>`;
 
     container.querySelectorAll('[data-pos]').forEach(btn => {
